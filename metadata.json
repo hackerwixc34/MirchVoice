@@ -1,0 +1,7 @@
+{
+  "name": "MirchVoice - Ultra-Realistic AI Voice Studio",
+  "description": "A cutting-edge mobile-first application that generates high-fidelity, human-like speech using the Gemini 2.5 Flash TTS model. Features multiple character voices and conversation generation.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
