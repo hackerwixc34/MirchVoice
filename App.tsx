@@ -25,6 +25,26 @@ const OfflineScreen: React.FC = () => (
   </div>
 );
 
+const SystemErrorScreen: React.FC<{ message: string }> = ({ message }) => (
+  <div className="fixed inset-0 z-[2000] bg-brand-bg flex flex-col items-center justify-center p-8 text-center animate-in fade-in duration-500">
+    <div className="w-20 h-20 rounded-full bg-brand-primary/10 flex items-center justify-center mb-6 border border-brand-primary/20">
+      <i className="fa-solid fa-gears text-brand-primary text-3xl animate-pulse"></i>
+    </div>
+    <h2 className="text-xl font-bold mb-2">Neural Maintenance</h2>
+    <p className="text-sm text-brand-muted max-w-[280px] leading-relaxed mb-6">
+      {message.includes('expired') || message.includes('API_KEY_INVALID') 
+        ? "The neural engine key has expired. Please update your environment configuration to continue." 
+        : "We've encountered a temporary processing delay in our neural engine."}
+    </p>
+    <button 
+      onClick={() => window.location.reload()}
+      className="px-8 py-3 bg-brand-surface border border-brand-border rounded-2xl text-[10px] font-black uppercase tracking-widest hover:text-brand-primary transition-colors"
+    >
+      Check Again
+    </button>
+  </div>
+);
+
 const SplashScreen: React.FC<{ onComplete: () => void }> = ({ onComplete }) => {
   const [isExiting, setIsExiting] = useState(false);
 
@@ -59,6 +79,7 @@ const SplashScreen: React.FC<{ onComplete: () => void }> = ({ onComplete }) => {
 const App: React.FC = () => {
   const [showSplash, setShowSplash] = useState(true);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [systemErrorMessage, setSystemErrorMessage] = useState<string | null>(null);
   const [activeMode, setActiveMode] = useState<AppMode>(AppMode.SINGLE);
   const [selectedVoice, setSelectedVoice] = useState<VoiceConfig>(GEMINI_VOICES[0]);
   const [text, setText] = useState('');
@@ -111,6 +132,7 @@ const App: React.FC = () => {
   const handleGenerate = async () => {
     if (!text.trim()) return;
     setIsGenerating(true);
+    setSystemErrorMessage(null);
     try {
       const isCloned = activeMode === AppMode.LAB && clonedVoice;
       const targetVoiceId = isCloned ? clonedVoice.mappedVoiceId : selectedVoice.id;
@@ -130,13 +152,18 @@ const App: React.FC = () => {
       setLastAudioUrl(audioUrl);
       setTimeout(() => audioRef.current?.play(), 100);
     } catch (err: any) {
-      alert(`Error: ${err.message}`);
+      if (err.message?.includes('400') || err.message?.includes('expired') || err.message?.includes('API_KEY_INVALID')) {
+        setSystemErrorMessage(err.message);
+      } else {
+        alert(`Error: ${err.message}`);
+      }
     } finally {
       setIsGenerating(false);
     }
   };
 
   const startRecording = async () => {
+    setSystemErrorMessage(null);
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ 
             audio: {
@@ -185,8 +212,12 @@ const App: React.FC = () => {
                 const base64 = await blobToBase64(blob);
                 const analysis = await analyzeVoice(base64, 'audio/webm');
                 setClonedVoice(analysis);
-            } catch (err) {
-                alert("Analysis failed. Ensure you are in a quiet room.");
+            } catch (err: any) {
+                if (err.message?.includes('400') || err.message?.includes('expired') || err.message?.includes('API_KEY_INVALID')) {
+                    setSystemErrorMessage(err.message);
+                } else {
+                    alert("Analysis failed. Ensure you are in a quiet room.");
+                }
             } finally {
                 setIsAnalyzing(false);
                 if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
@@ -218,6 +249,7 @@ const App: React.FC = () => {
   const deleteClip = (id: string) => setHistory(prev => prev.filter(c => c.id !== id));
 
   if (!isOnline) return <OfflineScreen />;
+  if (systemErrorMessage) return <SystemErrorScreen message={systemErrorMessage} />;
   if (showSplash) return <SplashScreen onComplete={() => setShowSplash(false)} />;
 
   return (
